@@ -1,33 +1,57 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Peer通信テスト</title>
+  <title>Peer通信 with QR</title>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 <body>
-  <h1>Peer通信</h1>
+  <h1>Peer通信 + QRコード</h1>
+
   <div>
     あなたのID: <span id="my-id">取得中...</span>
   </div>
-  <input type="text" id="target-id" placeholder="相手のIDを入力">
-  <button onclick="connect()">接続</button>
-  <input type="text" id="msg">
-  <button onclick="send()">送信</button>
+  <div id="qr"></div>
+
+  <div>
+    <p>接続相手ID: <input type="text" id="target-id"></p>
+    <button onclick="connect()">接続</button>
+  </div>
+
+  <div>
+    <input type="text" id="msg">
+    <button onclick="send()">送信</button>
+  </div>
+
   <pre id="log"></pre>
 
   <script>
-    const peer = new Peer(); // 自動でID生成
+    const peer = new Peer();
     let conn;
 
     peer.on('open', (id) => {
       document.getElementById('my-id').textContent = id;
+
+      const connectUrl = window.location.origin + window.location.pathname + '?id=' + id;
+
+      // QRコード生成
+      QRCode.toCanvas(document.getElementById('qr'), connectUrl, function (error) {
+        if (error) console.error(error);
+      });
     });
 
     peer.on('connection', (connection) => {
       conn = connection;
       setupConnection();
     });
+
+    // URLパラメータからIDを取得して自動接続
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('id')) {
+      const targetId = params.get('id');
+      document.getElementById('target-id').value = targetId;
+      connect(); // 自動接続
+    }
 
     function connect() {
       const targetId = document.getElementById('target-id').value;
@@ -39,7 +63,6 @@
       conn.on('open', () => {
         log('接続しました！');
       });
-
       conn.on('data', (data) => {
         log('受信: ' + data);
       });
