@@ -32,6 +32,7 @@
     <div>
         <input type="file" id="fileInput" multiple>
         <button onclick="sendFiles()">ファイル送信</button>
+        <button onclick="clearFiles()">選択クリア</button>
     </div>
 
     <pre id="log"></pre>
@@ -88,46 +89,106 @@
                         // ファイル受信
                         const blob = new Blob([data.buffer], { type: data.mime });
                         const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = data.name;
-                        a.textContent = `📁 ダウンロード: ${data.name}`;
-                        a.style.display = 'block';
-                        document.getElementById('log').appendChild(a);
-                        log(`ファイル受信: ${data.name}`);
+                        
+                        // ダウンロードリンクを作成
+                        const downloadDiv = document.createElement('div');
+                        downloadDiv.style.margin = '10px 0';
+                        downloadDiv.style.padding = '10px';
+                        downloadDiv.style.backgroundColor = '#f0f0f0';
+                        downloadDiv.style.border = '1px solid #ccc';
+                        downloadDiv.style.borderRadius = '5px';
+                        
+                        const downloadLink = document.createElement('a');
+                        downloadLink.href = url;
+                        downloadLink.download = data.name;
+                        downloadLink.textContent = `📁 ${data.name} をダウンロード`;
+                        downloadLink.style.textDecoration = 'none';
+                        downloadLink.style.color = '#0066cc';
+                        downloadLink.style.fontWeight = 'bold';
+                        
+                        // クリックイベントを追加して確実にダウンロードする
+                        downloadLink.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            
+                            // 新しい方法でダウンロードを試行
+                            const tempLink = document.createElement('a');
+                            tempLink.href = url;
+                            tempLink.download = data.name;
+                            document.body.appendChild(tempLink);
+                            tempLink.click();
+                            document.body.removeChild(tempLink);
+                            
+                            log(`ダウンロード開始: ${data.name}`);
+                        });
+                        
+                        downloadDiv.appendChild(downloadLink);
+                        document.getElementById('log').appendChild(downloadDiv);
+                        log(`ファイル受信: ${data.name} (${(data.buffer.byteLength / 1024).toFixed(2)} KB)`);
                     }
                 });
             }
 
             function send() {
                 const msg = document.getElementById('msg').value;
+                if (!msg.trim()) {
+                    log('エラー: メッセージが空です');
+                    return;
+                }
+                
                 if (conn && conn.open) {
                     conn.send({ type: 'text', text: msg });
                     log('送信（メッセージ）: ' + msg);
+                    document.getElementById('msg').value = ''; // 送信後にクリア
                 } else {
-                    log('未接続です');
+                    log('エラー: 接続が確立されていません');
                 }
+            }
+
+            function clearFiles() {
+                document.getElementById('fileInput').value = '';
+                log('ファイル選択をクリアしました');
             }
 
             function sendFiles() {
                 const files = document.getElementById('fileInput').files;
                 if (!conn || !conn.open) {
-                    log('未接続です');
+                    log('エラー: 接続が確立されていません');
                     return;
                 }
 
-                for (let file of files) {
+                if (files.length === 0) {
+                    log('エラー: ファイルが選択されていません');
+                    return;
+                }
+
+                log(`${files.length}個のファイルを送信開始...`);
+
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
                     const reader = new FileReader();
+                    
                     reader.onload = function () {
-                        const arrayBuffer = reader.result;
-                        conn.send({
-                            type: 'file',
-                            name: file.name,
-                            mime: file.type,
-                            buffer: arrayBuffer
-                        });
-                        log(`送信（ファイル）: ${file.name}`);
+                        try {
+                            const arrayBuffer = reader.result;
+                            const fileData = {
+                                type: 'file',
+                                name: file.name,
+                                mime: file.type || 'application/octet-stream',
+                                buffer: arrayBuffer,
+                                size: file.size
+                            };
+                            
+                            conn.send(fileData);
+                            log(`送信完了: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+                        } catch (error) {
+                            log(`送信エラー: ${file.name} - ${error.message}`);
+                        }
                     };
+                    
+                    reader.onerror = function() {
+                        log(`読み込みエラー: ${file.name}`);
+                    };
+                    
                     reader.readAsArrayBuffer(file);
                 }
             }
@@ -140,6 +201,7 @@
             window.connect = connect;
             window.send = send;
             window.sendFiles = sendFiles;
+            window.clearFiles = clearFiles;
         });
     </script>
 </body>
