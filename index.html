@@ -1,0 +1,59 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Peer通信テスト</title>
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
+</head>
+<body>
+  <h1>Peer通信</h1>
+  <div>
+    あなたのID: <span id="my-id">取得中...</span>
+  </div>
+  <input type="text" id="target-id" placeholder="相手のIDを入力">
+  <button onclick="connect()">接続</button>
+  <input type="text" id="msg">
+  <button onclick="send()">送信</button>
+  <pre id="log"></pre>
+
+  <script>
+    const peer = new Peer(); // 自動でID生成
+    let conn;
+
+    peer.on('open', (id) => {
+      document.getElementById('my-id').textContent = id;
+    });
+
+    peer.on('connection', (connection) => {
+      conn = connection;
+      setupConnection();
+    });
+
+    function connect() {
+      const targetId = document.getElementById('target-id').value;
+      conn = peer.connect(targetId);
+      setupConnection();
+    }
+
+    function setupConnection() {
+      conn.on('open', () => {
+        log('接続しました！');
+      });
+
+      conn.on('data', (data) => {
+        log('受信: ' + data);
+      });
+    }
+
+    function send() {
+      const msg = document.getElementById('msg').value;
+      conn.send(msg);
+      log('送信: ' + msg);
+    }
+
+    function log(message) {
+      document.getElementById('log').textContent += message + '\n';
+    }
+  </script>
+</body>
+</html>
