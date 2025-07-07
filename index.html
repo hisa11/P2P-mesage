@@ -2,17 +2,17 @@
 <html>
 
 <head>
-    <title>Peer通信 with QR</title>
+    <title>Peer通信 + QR + ファイル送信</title>
     <!-- jQuery -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <!-- QRコード生成ライブラリ -->
+    <!-- QRコード生成 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.qrcode/1.0/jquery.qrcode.min.js"></script>
-    <!-- PeerJSライブラリ -->
+    <!-- PeerJS -->
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 </head>
 
 <body>
-    <h1>Peer通信 + QRコード</h1>
+    <h1>Peer通信 + QRコード + ファイル送信</h1>
 
     <div>
         あなたのID: <span id="my-id">取得中...</span>
@@ -25,34 +25,35 @@
     </div>
 
     <div>
-        <input type="text" id="msg">
+        <input type="text" id="msg" placeholder="メッセージを入力">
         <button onclick="send()">送信</button>
+    </div>
+
+    <div>
+        <input type="file" id="fileInput" multiple>
+        <button onclick="sendFiles()">ファイル送信</button>
     </div>
 
     <pre id="log"></pre>
 
     <script>
-        // ページが完全に読み込まれてから実行
         document.addEventListener('DOMContentLoaded', function () {
             const peer = new Peer();
             let conn;
 
             peer.on('open', (id) => {
                 document.getElementById('my-id').textContent = id;
-
                 const connectUrl = window.location.origin + window.location.pathname + '?id=' + id;
 
-                // jQueryのQRコード生成
+                // QRコード生成
                 if (typeof $ !== 'undefined' && $.fn.qrcode) {
                     $('#qr').qrcode(connectUrl);
                 } else {
-                    // jQueryまたはQRCodeライブラリが読み込まれていない場合は少し待ってから再試行
                     setTimeout(() => {
                         if (typeof $ !== 'undefined' && $.fn.qrcode) {
                             $('#qr').qrcode(connectUrl);
                         } else {
-                            console.error('jQuery QRCodeライブラリが読み込まれていません');
-                            document.getElementById('qr').innerHTML = '<p>QRコードの生成に失敗しました</p>';
+                            console.error('QRコード生成ライブラリが読み込まれていません');
                         }
                     }, 1000);
                 }
@@ -63,12 +64,10 @@
                 setupConnection();
             });
 
-            // URLパラメータからIDを取得して自動接続
             const params = new URLSearchParams(window.location.search);
             if (params.has('id')) {
-                const targetId = params.get('id');
-                document.getElementById('target-id').value = targetId;
-                connect(); // 自動接続
+                document.getElementById('target-id').value = params.get('id');
+                connect();
             }
 
             function connect() {
@@ -81,24 +80,66 @@
                 conn.on('open', () => {
                     log('接続しました！');
                 });
+
                 conn.on('data', (data) => {
-                    log('受信: ' + data);
+                    if (data.type === 'text') {
+                        log('受信（メッセージ）: ' + data.text);
+                    } else if (data.type === 'file') {
+                        // ファイル受信
+                        const blob = new Blob([data.buffer], { type: data.mime });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = data.name;
+                        a.textContent = `📁 ダウンロード: ${data.name}`;
+                        a.style.display = 'block';
+                        document.getElementById('log').appendChild(a);
+                        log(`ファイル受信: ${data.name}`);
+                    }
                 });
             }
 
             function send() {
                 const msg = document.getElementById('msg').value;
-                conn.send(msg);
-                log('送信: ' + msg);
+                if (conn && conn.open) {
+                    conn.send({ type: 'text', text: msg });
+                    log('送信（メッセージ）: ' + msg);
+                } else {
+                    log('未接続です');
+                }
+            }
+
+            function sendFiles() {
+                const files = document.getElementById('fileInput').files;
+                if (!conn || !conn.open) {
+                    log('未接続です');
+                    return;
+                }
+
+                for (let file of files) {
+                    const reader = new FileReader();
+                    reader.onload = function () {
+                        const arrayBuffer = reader.result;
+                        conn.send({
+                            type: 'file',
+                            name: file.name,
+                            mime: file.type,
+                            buffer: arrayBuffer
+                        });
+                        log(`送信（ファイル）: ${file.name}`);
+                    };
+                    reader.readAsArrayBuffer(file);
+                }
             }
 
             function log(message) {
                 document.getElementById('log').textContent += message + '\n';
             }
 
-            // グローバル関数として定義（HTMLから呼び出すため）
+            // HTMLボタンから呼び出す関数をグローバルに公開
             window.connect = connect;
             window.send = send;
+            window.sendFiles = sendFiles;
         });
     </script>
 </body>
