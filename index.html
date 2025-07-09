@@ -2,251 +2,217 @@
 <html>
 
 <head>
-    <title>Peer通信 + QR + ファイル送信</title>
-    <!-- jQuery -->
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <!-- QRコード生成 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.qrcode/1.0/jquery.qrcode.min.js"></script>
-    <!-- PeerJS -->
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <meta charset="UTF-8">
+  <title>Peer通信 + QR + ファイル送信</title>
+  <!-- jQuery -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <!-- QRコード生成 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.qrcode/1.0/jquery.qrcode.min.js"></script>
+  <!-- PeerJS -->
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 </head>
 
 <body>
-    <h1>Peer通信 + QRコード + ファイル送信</h1>
+  <h1>Peer通信 + QRコード + ファイル送信</h1>
 
-    <div>
-        あなたのID: <span id="my-id">取得中...</span>
-    </div>
-    <div id="qr"></div>
+  <div>
+    あなたのID: <span id="my-id">取得中...</span>
+  </div>
+  <div id="qr"></div>
 
-    <div>
-        <p>接続相手ID: <input type="text" id="target-id"></p>
-        <button onclick="connect()">接続</button>
-    </div>
+  <div>
+    <p>接続相手ID: <input type="text" id="target-id"></p>
+    <button onclick="connect()">接続</button>
+  </div>
 
-    <div>
-        <input type="text" id="msg" placeholder="メッセージを入力">
-        <button onclick="send()">送信</button>
-    </div>
+  <div>
+    <input type="text" id="msg" placeholder="メッセージを入力">
+    <button onclick="send()">送信</button>
+  </div>
 
-    <div>
-        <input type="file" id="fileInput" multiple>
-        <button onclick="sendFiles()">ファイル送信</button>
-        <button onclick="clearFiles()">選択クリア</button>
-    </div>
+  <div>
+    <input type="file" id="fileInput" multiple>
+    <button onclick="sendFiles()">ファイル送信</button>
+    <button onclick="clearFiles()">選択クリア</button>
+  </div>
 
-    <pre id="log"></pre>
+  <pre id="log"></pre>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const peer = new Peer();
-            let conn;
+    document.addEventListener('DOMContentLoaded', function () {
+      const peer = new Peer();
+      let conn;
 
-            peer.on('open', (id) => {
-                document.getElementById('my-id').textContent = id;
-                const connectUrl = window.location.origin + window.location.pathname + '?id=' + id;
+      peer.on('open', (id) => {
+        document.getElementById('my-id').textContent = id;
+        const connectUrl = window.location.origin + window.location.pathname + '?id=' + id;
+        if ($ && $.fn.qrcode) {
+          $('#qr').qrcode({
+            width: 128,
+            height: 128,
+            text: connectUrl
+          });
+        }
+      });
 
-                // QRコード生成
-                if (typeof $ !== 'undefined' && $.fn.qrcode) {
-                    $('#qr').qrcode(connectUrl);
-                } else {
-                    setTimeout(() => {
-                        if (typeof $ !== 'undefined' && $.fn.qrcode) {
-                            $('#qr').qrcode(connectUrl);
-                        } else {
-                            console.error('QRコード生成ライブラリが読み込まれていません');
-                        }
-                    }, 1000);
-                }
-            });
+      peer.on('connection', (connection) => {
+        conn = connection;
+        log(`相手 (${connection.peer}) から接続要求がありました。`);
+        setupConnection();
+      });
 
-            peer.on('connection', (connection) => {
-                conn = connection;
-                setupConnection();
-            });
+      // URLクエリにIDがあれば自動接続
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('id')) {
+        const targetId = params.get('id');
+        document.getElementById('target-id').value = targetId;
+        // 少し待ってから接続しないとPeerJSの準備が間に合わない場合がある
+        setTimeout(() => {
+          log(`${targetId} に自動接続します...`);
+          connect();
+        }, 500);
+      }
 
-            const params = new URLSearchParams(window.location.search);
-            if (params.has('id')) {
-                document.getElementById('target-id').value = params.get('id');
-                connect();
-            }
+      function connect() {
+        const targetId = document.getElementById('target-id').value;
+        if (!targetId) {
+            log('接続相手のIDを入力してください。');
+            return;
+        }
+        log(`${targetId} に接続します...`);
+        conn = peer.connect(targetId);
+        setupConnection();
+      }
 
-            function connect() {
-                const targetId = document.getElementById('target-id').value;
-                conn = peer.connect(targetId);
-                setupConnection();
-            }
-
-            function setupConnection() {
-                conn.on('open', () => {
-                    log('接続しました！');
-                });
-
-                conn.on('data', (data) => {
-                    if (data.type === 'text') {
-                        log('受信（メッセージ）: ' + data.text);
-                    } else if (data.type === 'file') {
-                        // ファイル受信
-                        const blob = new Blob([data.buffer], { type: data.mime });
-                        
-                        // ダウンロードリンクを作成
-                        const downloadDiv = document.createElement('div');
-                        downloadDiv.style.margin = '10px 0';
-                        downloadDiv.style.padding = '10px';
-                        downloadDiv.style.backgroundColor = '#f0f0f0';
-                        downloadDiv.style.border = '1px solid #ccc';
-                        downloadDiv.style.borderRadius = '5px';
-                        
-                        const downloadLink = document.createElement('a');
-                        downloadLink.textContent = `📁 ${data.name} をダウンロード`;
-                        downloadLink.style.textDecoration = 'none';
-                        downloadLink.style.color = '#0066cc';
-                        downloadLink.style.fontWeight = 'bold';
-                        downloadLink.style.cursor = 'pointer';
-                        downloadLink.style.display = 'inline-block';
-                        downloadLink.style.padding = '5px 10px';
-                        downloadLink.style.backgroundColor = '#e6f3ff';
-                        downloadLink.style.border = '1px solid #0066cc';
-                        downloadLink.style.borderRadius = '3px';
-                        
-                        // より確実なダウンロード方法
-                        downloadLink.addEventListener('click', function(e) {
-                            e.preventDefault();
-                            
-                            try {
-                                // 方法1: FileSaver.js風の実装
-                                const url = URL.createObjectURL(blob);
-                                const tempLink = document.createElement('a');
-                                tempLink.style.display = 'none';
-                                tempLink.href = url;
-                                tempLink.download = data.name;
-                                
-                                // DOMに追加してクリック
-                                document.body.appendChild(tempLink);
-                                tempLink.click();
-                                
-                                // クリーンアップ
-                                setTimeout(() => {
-                                    document.body.removeChild(tempLink);
-                                    URL.revokeObjectURL(url);
-                                }, 100);
-                                
-                                log(`ダウンロード開始: ${data.name}`);
-                            } catch (error) {
-                                console.error('ダウンロードエラー:', error);
-                                
-                                // 方法2: フォールバック - 新しいタブで開く
-                                try {
-                                    const url = URL.createObjectURL(blob);
-                                    const newWindow = window.open(url, '_blank');
-                                    if (!newWindow) {
-                                        log('エラー: ポップアップがブロックされました。ブラウザの設定を確認してください。');
-                                    } else {
-                                        log(`新しいタブでファイルを開きました: ${data.name}`);
-                                    }
-                                } catch (error2) {
-                                    log(`ダウンロードに失敗しました: ${data.name} - ${error2.message}`);
-                                }
-                            }
-                        });
-                        
-                        downloadDiv.appendChild(downloadLink);
-                        
-                        // 追加のダウンロードボタン（右クリック保存用）
-                        const directLink = document.createElement('a');
-                        const url = URL.createObjectURL(blob);
-                        directLink.href = url;
-                        directLink.download = data.name;
-                        directLink.textContent = '（右クリック→名前を付けて保存）';
-                        directLink.style.marginLeft = '10px';
-                        directLink.style.fontSize = '12px';
-                        directLink.style.color = '#666';
-                        
-                        downloadDiv.appendChild(document.createElement('br'));
-                        downloadDiv.appendChild(directLink);
-                        
-                        document.getElementById('log').appendChild(downloadDiv);
-                        log(`ファイル受信: ${data.name} (${(data.buffer.byteLength / 1024).toFixed(2)} KB)`);
-                    }
-                });
-            }
-
-            function send() {
-                const msg = document.getElementById('msg').value;
-                if (!msg.trim()) {
-                    log('エラー: メッセージが空です');
-                    return;
-                }
-                
-                if (conn && conn.open) {
-                    conn.send({ type: 'text', text: msg });
-                    log('送信（メッセージ）: ' + msg);
-                    document.getElementById('msg').value = ''; // 送信後にクリア
-                } else {
-                    log('エラー: 接続が確立されていません');
-                }
-            }
-
-            function clearFiles() {
-                document.getElementById('fileInput').value = '';
-                log('ファイル選択をクリアしました');
-            }
-
-            function sendFiles() {
-                const files = document.getElementById('fileInput').files;
-                if (!conn || !conn.open) {
-                    log('エラー: 接続が確立されていません');
-                    return;
-                }
-
-                if (files.length === 0) {
-                    log('エラー: ファイルが選択されていません');
-                    return;
-                }
-
-                log(`${files.length}個のファイルを送信開始...`);
-
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    const reader = new FileReader();
-                    
-                    reader.onload = function () {
-                        try {
-                            const arrayBuffer = reader.result;
-                            const fileData = {
-                                type: 'file',
-                                name: file.name,
-                                mime: file.type || 'application/octet-stream',
-                                buffer: arrayBuffer,
-                                size: file.size
-                            };
-                            
-                            conn.send(fileData);
-                            log(`送信完了: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-                        } catch (error) {
-                            log(`送信エラー: ${file.name} - ${error.message}`);
-                        }
-                    };
-                    
-                    reader.onerror = function() {
-                        log(`読み込みエラー: ${file.name}`);
-                    };
-                    
-                    reader.readAsArrayBuffer(file);
-                }
-            }
-
-            function log(message) {
-                document.getElementById('log').textContent += message + '\n';
-            }
-
-            // HTMLボタンから呼び出す関数をグローバルに公開
-            window.connect = connect;
-            window.send = send;
-            window.sendFiles = sendFiles;
-            window.clearFiles = clearFiles;
+      function setupConnection() {
+        conn.on('open', () => {
+          log(`接続成功！ (${conn.peer})`);
+          // 接続が成功したら、相手のID入力欄を無効化しても良い
+          document.getElementById('target-id').disabled = true;
+          document.querySelector('button[onclick="connect()"]').disabled = true;
         });
-    </script>
+
+        conn.on('data', (data) => {
+          if (data.type === 'text') {
+            log(`受信: ${data.text}`);
+          } else if (data.type === 'file') {
+            const blob = new Blob([data.buffer], { type: data.mime });
+            const url = URL.createObjectURL(blob);
+            const logEl = document.getElementById('log');
+
+            // ダウンロードリンクのコンテナを作成
+            const container = document.createElement('div');
+            container.style.margin = '8px 0';
+            
+            // ダウンロードリンク
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.name;
+            a.textContent = `📁 ${data.name} をダウンロード`;
+            a.style.display = 'block';
+            a.style.marginBottom = '4px';
+
+            container.appendChild(a);
+
+            // 画像ならプレビューを表示
+            if (data.mime && data.mime.startsWith('image/')) {
+              const img = document.createElement('img');
+              img.src = url;
+              img.alt = data.name;
+              img.style.maxWidth = '300px';
+              img.style.maxHeight = '300px';
+              img.style.display = 'block';
+              img.style.marginTop = '4px';
+              container.appendChild(img);
+            }
+            
+            // ログ要素にコンテナを追加
+            logEl.appendChild(container);
+            log(`ファイル受信: ${data.name} (${(data.size / 1024).toFixed(2)} KB)`);
+            
+            // 受信後にBlob URLをメモリから解放するのを忘れないようにする
+            // ただし、ダウンロードや表示が終わるまで待つ必要があるため、ここでは解放しない
+            // a.onclick = () => { setTimeout(() => { URL.revokeObjectURL(url); }, 1000); };
+          }
+        });
+        
+        conn.on('close', () => {
+            log('接続が切れました。');
+            document.getElementById('target-id').disabled = false;
+            document.querySelector('button[onclick="connect()"]').disabled = false;
+        });
+
+        conn.on('error', (err) => {
+            log('エラーが発生しました: ' + err);
+        });
+      }
+
+      function send() {
+        const msg = document.getElementById('msg').value;
+        if (!msg.trim()) {
+          log('メッセージが空です');
+          return;
+        }
+        if (conn && conn.open) {
+          conn.send({ type: 'text', text: msg });
+          log('送信: ' + msg);
+          document.getElementById('msg').value = '';
+        } else {
+          log('未接続です');
+        }
+      }
+
+      function sendFiles() {
+        const files = document.getElementById('fileInput').files;
+        if (!conn || !conn.open) {
+          log('接続されていません');
+          return;
+        }
+        if (files.length === 0) {
+          log('ファイルが選択されていません');
+          return;
+        }
+
+        for (const file of files) {
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            conn.send({
+              type: 'file',
+              name: file.name,
+              mime: file.type || 'application/octet-stream',
+              buffer: e.target.result,
+              size: file.size
+            });
+            log(`送信: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+          };
+          reader.readAsArrayBuffer(file);
+        }
+      }
+
+      function clearFiles() {
+        document.getElementById('fileInput').value = '';
+        log('ファイル選択をクリアしました');
+      }
+
+      // ★★★★★ 問題の関数を修正 ★★★★★
+      function log(message) {
+        const logEl = document.getElementById('log');
+        // メッセージをテキストノードとして追加し、改行も追加する
+        logEl.appendChild(document.createTextNode(message + '\n'));
+        // 常に一番下にスクロールして最新のログを見やすくする
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+      
+      // 元のコードにあったダウンロードリンクのクリックイベントは複雑なので削除しました。
+      // a.download属性があれば、通常はクリックだけでダウンロードが開始されます。
+      // また、ファイル受信時の表示をdivで囲むことで、ログとの区別をつけやすくしました。
+
+      window.connect = connect;
+      window.send = send;
+      window.sendFiles = sendFiles;
+      window.clearFiles = clearFiles;
+    });
+  </script>
 </body>
 
 </html>
