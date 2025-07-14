@@ -1,0 +1,244 @@
+body {
+  font-family: sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #f0f2f5;
+  margin: 0;
+}
+
+.chat-container {
+  width: 100%;
+  max-width: 800px;
+  height: 100vh; /* スマホ表示で高さを最大に */
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.header {
+  padding: 15px;
+  background-color: #007bff;
+  color: white;
+  text-align: center;
+  font-size: 1.2em;
+}
+
+.main-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 250px;
+  border-right: 1px solid #ddd;
+  padding: 15px;
+  background-color: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.id-section, .connection-section {
+  background-color: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.id-section h3, .connection-section h3 {
+    margin-top: 0;
+    font-size: 1em;
+    color: #333;
+}
+
+
+#my-id {
+  font-weight: bold;
+  color: #007bff;
+  word-break: break-all;
+}
+
+#qr {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+
+#target-id {
+  width: calc(100% - 22px);
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.chat-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* chat-areaが自身の範囲を超えないように */
+}
+
+#log {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  background-color: #e5ddd5;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#file-selection-info {
+    padding: 5px 15px;
+    font-size: 0.9em;
+    color: #555;
+    background-color: #f0f0f0;
+    border-top: 1px solid #ddd;
+}
+
+.progress-container {
+    padding: 15px;
+    background-color: #fff;
+    border-top: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background-color: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #007bff, #0056b3);
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}
+
+.message {
+  padding: 10px 15px;
+  border-radius: 20px;
+  max-width: 70%;
+  word-wrap: break-word;
+}
+
+.sent {
+  background-color: #dcf8c6;
+  align-self: flex-end;
+}
+
+.received {
+  background-color: #ffffff;
+  align-self: flex-start;
+}
+
+.system-message {
+    text-align: center;
+    color: #888;
+    font-size: 0.9em;
+    margin: 5px 0;
+}
+
+
+.input-area {
+  display: flex;
+  align-items: center; /* アイコンと入力欄を中央揃え */
+  padding: 10px;
+  border-top: 1px solid #ddd;
+  background-color: #f0f0f0;
+}
+
+.file-input-label {
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 0 10px;
+    color: #555;
+}
+
+#msg {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  margin-right: 10px;
+}
+
+button {
+  padding: 10px 15px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+button:disabled {
+    background-color: #a0c7e4;
+    cursor: not-allowed;
+}
+
+/* PC向けスタイル */
+@media (min-width: 769px) {
+  .chat-container {
+    height: 90vh;
+    max-width: 800px;
+  }
+}
+
+/* スマホ向けスタイル */
+@media (max-width: 768px) {
+  .chat-container {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+  .main-content {
+      flex-direction: column;
+  }
+  .sidebar {
+      width: 100%;
+      height: 100%;
+      border-right: none;
+      justify-content: center; /* 垂直方向中央揃え */
+  }
+  .chat-wrapper {
+      display: none; /* 初期状態ではチャット画面を非表示 */
+      height: 100%;
+  }
+  .chat-container.connected .sidebar {
+      display: none; /* 接続後はサイドバーを非表示 */
+  }
+  .chat-container.connected .chat-wrapper {
+      display: flex; /* 接続後はチャット画面を表示 */
+  }
+}
