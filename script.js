@@ -1,0 +1,176 @@
+
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const peer = new Peer();
+      let conn;
+
+      peer.on('open', (id) => {
+        document.getElementById('my-id').textContent = id;
+        const connectUrl = window.location.origin + window.location.pathname + '?id=' + id;
+        if ($ && $.fn.qrcode) {
+          $('#qr').qrcode({
+            width: 128,
+            height: 128,
+            text: connectUrl
+          });
+        }
+      });
+
+      peer.on('connection', (connection) => {
+        conn = connection;
+        log(`相手 (${connection.peer}) から接続要求がありました。`);
+        setupConnection();
+      });
+
+      // URLクエリにIDがあれば自動接続
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('id')) {
+        const targetId = params.get('id');
+        document.getElementById('target-id').value = targetId;
+        // 少し待ってから接続しないとPeerJSの準備が間に合わない場合がある
+        setTimeout(() => {
+          log(`${targetId} に自動接続します...`);
+          connect();
+        }, 500);
+      }
+
+      function connect() {
+        const targetId = document.getElementById('target-id').value;
+        if (!targetId) {
+            log('接続相手のIDを入力してください。');
+            return;
+        }
+        log(`${targetId} に接続します...`);
+        conn = peer.connect(targetId);
+        setupConnection();
+      }
+
+      function setupConnection() {
+        conn.on('open', () => {
+          log(`接続成功！ (${conn.peer})`);
+          // 接続が成功したら、相手のID入力欄を無効化しても良い
+          document.getElementById('target-id').disabled = true;
+          document.querySelector('button[onclick="connect()"]').disabled = true;
+        });
+
+        conn.on('data', (data) => {
+          if (data.type === 'text') {
+            log(`受信: ${data.text}`);
+          } else if (data.type === 'file') {
+            const blob = new Blob([data.buffer], { type: data.mime });
+            const url = URL.createObjectURL(blob);
+            const logEl = document.getElementById('log');
+
+            // ダウンロードリンクのコンテナを作成
+            const container = document.createElement('div');
+            container.style.margin = '8px 0';
+            
+            // ダウンロードリンク
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.name;
+            a.textContent = `📁 ${data.name} をダウンロード`;
+            a.style.display = 'block';
+            a.style.marginBottom = '4px';
+
+            container.appendChild(a);
+
+            // 画像ならプレビューを表示
+            if (data.mime && data.mime.startsWith('image/')) {
+              const img = document.createElement('img');
+              img.src = url;
+              img.alt = data.name;
+              img.style.maxWidth = '300px';
+              img.style.maxHeight = '300px';
+              img.style.display = 'block';
+              img.style.marginTop = '4px';
+              container.appendChild(img);
+            }
+            
+            // ログ要素にコンテナを追加
+            logEl.appendChild(container);
+            log(`ファイル受信: ${data.name} (${(data.size / 1024).toFixed(2)} KB)`);
+            
+            // 受信後にBlob URLをメモリから解放するのを忘れないようにする
+            // ただし、ダウンロードや表示が終わるまで待つ必要があるため、ここでは解放しない
+            // a.onclick = () => { setTimeout(() => { URL.revokeObjectURL(url); }, 1000); };
+          }
+        });
+        
+        conn.on('close', () => {
+            log('接続が切れました。');
+            document.getElementById('target-id').disabled = false;
+            document.querySelector('button[onclick="connect()"]').disabled = false;
+        });
+
+        conn.on('error', (err) => {
+            log('エラーが発生しました: ' + err);
+        });
+      }
+
+      function send() {
+        const msg = document.getElementById('msg').value;
+        if (!msg.trim()) {
+          log('メッセージが空です');
+          return;
+        }
+        if (conn && conn.open) {
+          conn.send({ type: 'text', text: msg });
+          log('送信: ' + msg);
+          document.getElementById('msg').value = '';
+        } else {
+          log('未接続です');
+        }
+      }
+
+      function sendFiles() {
+        const files = document.getElementById('fileInput').files;
+        if (!conn || !conn.open) {
+          log('接続されていません');
+          return;
+        }
+        if (files.length === 0) {
+          log('ファイルが選択されていません');
+          return;
+        }
+
+        for (const file of files) {
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            conn.send({
+              type: 'file',
+              name: file.name,
+              mime: file.type || 'application/octet-stream',
+              buffer: e.target.result,
+              size: file.size
+            });
+            log(`送信: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+          };
+          reader.readAsArrayBuffer(file);
+        }
+      }
+
+      function clearFiles() {
+        document.getElementById('fileInput').value = '';
+        log('ファイル選択をクリアしました');
+      }
+
+      // ★★★★★ 問題の関数を修正 ★★★★★
+      function log(message) {
+        const logEl = document.getElementById('log');
+        // メッセージをテキストノードとして追加し、改行も追加する
+        logEl.appendChild(document.createTextNode(message + '\n'));
+        // 常に一番下にスクロールして最新のログを見やすくする
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+      
+      // 元のコードにあったダウンロードリンクのクリックイベントは複雑なので削除しました。
+      // a.download属性があれば、通常はクリックだけでダウンロードが開始されます。
+      // また、ファイル受信時の表示をdivで囲むことで、ログとの区別をつけやすくしました。
+
+      window.connect = connect;
+      window.send = send;
+      window.sendFiles = sendFiles;
+      window.clearFiles = clearFiles;
+    });
+
